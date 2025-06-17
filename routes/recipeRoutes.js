@@ -125,27 +125,47 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-// Route upload dengan gambar
+function safeUnlink(filePath, retries = 5, delay = 300) {
+  setTimeout(() => {
+    fs.unlink(filePath, (err) => {
+      if (err) {
+        if (retries > 0) {
+          console.warn(`Retrying unlink... (${6 - retries}) for file: ${filePath}`);
+          safeUnlink(filePath, retries - 1, delay);
+        } else {
+          console.error(`Gagal hapus file asli setelah beberapa kali percobaan: ${filePath}`, err.message);
+        }
+      } else {
+        console.log(`File asli berhasil dihapus: ${filePath}`);
+      }
+    });
+  }, delay);
+}
+
+// Route upload resep dengan gambar
 router.post("/upload", verifyToken, upload.single("image"), async (req, res) => {
   try {
     const { title, description, ingredients, steps } = req.body;
     const fileName = `resep=${Date.now()}.webp`;
     const outputPath = path.join(__dirname, "../uploads", fileName);
 
+    // Resize dan konversi gambar
     await sharp(req.file.path)
       .resize(400, 400, {
         fit: "cover",
         position: "center",
-      }) // Resize image to 400x400
-      .webp({ quality: 75 }) // Save resized image
+      })
+      .webp({ quality: 75 })
       .toFile(outputPath);
 
-    fs.unlinkSync(req.file.path); // Hapus file asli setelah resize
+    console.log("Resize selesai, mulai hapus file asli:", req.file.path);
+    safeUnlink(req.file.path); // Hapus file asli setelah resize selesai
 
+    // Simpan data resep ke database
     const newRecipe = new Recipe({
       title,
       description,
-      ingredients: JSON.parse(ingredients), //kriim dari forntend sebagai json
+      ingredients: JSON.parse(ingredients),
       steps: JSON.parse(steps),
       image: fileName,
       createdBy: req.user.id,
@@ -159,14 +179,18 @@ router.post("/upload", verifyToken, upload.single("image"), async (req, res) => 
   }
 });
 
-// EDIT resep
+// Route edit resep dengan opsi update gambar
 router.put("/:id", upload.single("image"), verifyToken, async (req, res) => {
   try {
     const updateData = {
       title: req.body.title,
       description: req.body.description,
-      ingredients: Array.isArray(req.body.ingredients) ? req.body.ingredients : req.body.ingredients?.split("\n").filter(Boolean),
-      steps: Array.isArray(req.body.steps) ? req.body.steps : req.body.steps?.split("\n").filter(Boolean),
+      ingredients: Array.isArray(req.body.ingredients)
+        ? req.body.ingredients
+        : req.body.ingredients?.split("\n").filter(Boolean),
+      steps: Array.isArray(req.body.steps)
+        ? req.body.steps
+        : req.body.steps?.split("\n").filter(Boolean),
     };
 
     if (req.file) {
@@ -177,11 +201,15 @@ router.put("/:id", upload.single("image"), verifyToken, async (req, res) => {
         .resize(400, 400, {
           fit: "cover",
           position: "center",
-        }) // Resize image to 400x400
-        .toFile(outputPath); // Save resized image
+        })
+        .toFile(outputPath);
+
+      console.log("Resize selesai (edit), mulai hapus file asli:", req.file.path);
+      safeUnlink(req.file.path); // Hapus file asli setelah resize selesai
 
       updateData.image = fileName;
     }
+
     const resep = await Recipe.findById(req.params.id);
     if (!resep) {
       return res.status(404).json({ message: "Resep tidak ditemukan" });
@@ -195,13 +223,16 @@ router.put("/:id", upload.single("image"), verifyToken, async (req, res) => {
       new: true,
       runValidators: true,
     });
+
     if (!updated) {
       return res.status(404).json({ message: "Resep tidak ditemukan" });
     }
+
     res.status(200).json({ message: "Resep berhasil di update", data: updated });
   } catch (error) {
     res.status(500).json({ message: "Gagal update resep", error: error.message });
   }
 });
+
 
 module.exports = router;

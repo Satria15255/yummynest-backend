@@ -11,7 +11,7 @@ const dotenv = require("dotenv");
 dotenv.config();
 const app = express();
 
-const allowedOrigins = ["http://localhost:3000", "https://yummynest-foodrecipe.vercel.app"];
+const allowedOrigins = ["http://localhost:5173", "https://yummynest-foodrecipe.vercel.app"];
 
 app.use(
   cors({
@@ -24,13 +24,10 @@ app.use(express.json());
 app.use("/api/admin", adminRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/recipes", recipeRoutes);
-app.use("/uploads", express.static("uploads"));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 mongoose
-  .connect(process.env.MONGO_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("Database connected");
   })
