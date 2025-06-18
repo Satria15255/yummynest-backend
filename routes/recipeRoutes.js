@@ -115,16 +115,6 @@ router.delete("/:recipeId/comments/:commentId", auth, async (req, res) => {
   }
 });
 
-// Konfigurasi penyimpanan file
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, "uploads/");
-  },
-  filename: function (req, file, cb) {
-    cb(null, Date.now() + path.extname(file.originalname));
-  },
-});
-
 const { v4: uuidv4 } = require("uuid");
 // Route upload resep dengan gambar
 router.post("/upload", verifyToken, upload.single("image"), async (req, res) => {
