@@ -115,7 +115,6 @@ router.delete("/:recipeId/comments/:commentId", auth, async (req, res) => {
   }
 });
 
-const { v4: uuidv4 } = require("uuid");
 // Route upload resep dengan gambar
 router.post("/upload", verifyToken, upload.single("image"), async (req, res) => {
   try {
