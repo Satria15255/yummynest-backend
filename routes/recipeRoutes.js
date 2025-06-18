@@ -118,6 +118,9 @@ router.delete("/:recipeId/comments/:commentId", auth, async (req, res) => {
 // Route upload resep dengan gambar
 router.post("/upload", verifyToken, upload.single("image"), async (req, res) => {
   try {
+    console.log("upload hit!!");
+    console.log("req.file", req.file);
+    console.log("req.body", req.body);
     const { title, description, ingredients, steps } = req.body;
 
     // Simpan data resep ke database
@@ -139,7 +142,7 @@ router.post("/upload", verifyToken, upload.single("image"), async (req, res) => 
 });
 
 // Route edit resep dengan opsi update gambar
-router.put("/:id", upload.single("image"), verifyToken, async (req, res) => {
+router.put("/:id", verifyToken, upload.single("image"), async (req, res) => {
   try {
     const updateData = {
       title: req.body.title,
