@@ -1,6 +1,5 @@
 const express = require("express");
 const router = express.Router();
-const multer = require("multer");
 const sharp = require("sharp");
 const fs = require("fs");
 const { createRecipe } = require("../controllers/recipeController");
@@ -8,6 +7,9 @@ const verifyToken = require("../middleware/auth");
 const Recipe = require("../models/Recipe");
 const path = require("path");
 const auth = require("../middleware/auth");
+const multer = require("multer");
+const storage = require("../utils/cloudinaryStorage");
+const upload = multer({ storage });
 
 // GET semua resep
 router.get("/", async (req, res) => {
@@ -123,43 +125,11 @@ const storage = multer.diskStorage({
   },
 });
 
-const upload = multer({ storage: storage });
-
-function safeUnlink(filePath, retries = 5, delay = 300) {
-  setTimeout(() => {
-    fs.unlink(filePath, (err) => {
-      if (err) {
-        if (retries > 0) {
-          console.warn(`Retrying unlink... (${6 - retries}) for file: ${filePath}`);
-          safeUnlink(filePath, retries - 1, delay);
-        } else {
-          console.error(`Gagal hapus file asli setelah beberapa kali percobaan: ${filePath}`, err.message);
-        }
-      } else {
-        console.log(`File asli berhasil dihapus: ${filePath}`);
-      }
-    });
-  }, delay);
-}
-
+const { v4: uuidv4 } = require("uuid");
 // Route upload resep dengan gambar
 router.post("/upload", verifyToken, upload.single("image"), async (req, res) => {
   try {
     const { title, description, ingredients, steps } = req.body;
-    const fileName = `resep=${Date.now()}.webp`;
-    const outputPath = path.join(__dirname, "../uploads", fileName);
-
-    // Resize dan konversi gambar
-    await sharp(req.file.path)
-      .resize(400, 400, {
-        fit: "cover",
-        position: "center",
-      })
-      .webp({ quality: 75 })
-      .toFile(outputPath);
-
-    console.log("Resize selesai, mulai hapus file asli:", req.file.path);
-    safeUnlink(req.file.path); // Hapus file asli setelah resize selesai
 
     // Simpan data resep ke database
     const newRecipe = new Recipe({
@@ -167,7 +137,7 @@ router.post("/upload", verifyToken, upload.single("image"), async (req, res) => 
       description,
       ingredients: JSON.parse(ingredients),
       steps: JSON.parse(steps),
-      image: fileName,
+      image: req.file.path,
       createdBy: req.user.id,
       user: req.user.id,
     });
@@ -185,29 +155,12 @@ router.put("/:id", upload.single("image"), verifyToken, async (req, res) => {
     const updateData = {
       title: req.body.title,
       description: req.body.description,
-      ingredients: Array.isArray(req.body.ingredients)
-        ? req.body.ingredients
-        : req.body.ingredients?.split("\n").filter(Boolean),
-      steps: Array.isArray(req.body.steps)
-        ? req.body.steps
-        : req.body.steps?.split("\n").filter(Boolean),
+      ingredients: Array.isArray(req.body.ingredients) ? req.body.ingredients : req.body.ingredients?.split("\n").filter(Boolean),
+      steps: Array.isArray(req.body.steps) ? req.body.steps : req.body.steps?.split("\n").filter(Boolean),
     };
 
     if (req.file) {
-      const fileName = `resep=${Date.now()}.jpg`;
-      const outputPath = path.join(__dirname, "../uploads", fileName);
-
-      await sharp(req.file.path)
-        .resize(400, 400, {
-          fit: "cover",
-          position: "center",
-        })
-        .toFile(outputPath);
-
-      console.log("Resize selesai (edit), mulai hapus file asli:", req.file.path);
-      safeUnlink(req.file.path); // Hapus file asli setelah resize selesai
-
-      updateData.image = fileName;
+      updateData.image = req.file.path;
     }
 
     const resep = await Recipe.findById(req.params.id);
