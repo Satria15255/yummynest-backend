@@ -118,17 +118,32 @@ router.delete("/:recipeId/comments/:commentId", auth, async (req, res) => {
 // Route upload resep dengan gambar
 router.post("/upload", verifyToken, upload.single("image"), async (req, res) => {
   try {
+    const { title, description, ingredients, steps } = req.body;
+    let ingredientsArray = [];
+    let stepsArray = [];
+
+    try {
+      ingredientsArray = JSON.parse(ingredients);
+    } catch {
+      ingredientsArray = ingredients?.split("\n") || [];
+    }
+
+    try {
+      stepsArray = JSON.parse(steps);
+    } catch {
+      stepsArray = steps?.split("\n") || [];
+    }
+
     console.log("upload hit!!");
     console.log("req.file", req.file);
     console.log("req.body", req.body);
-    const { title, description, ingredients, steps } = req.body;
 
     // Simpan data resep ke database
     const newRecipe = new Recipe({
       title,
       description,
-      ingredients: JSON.parse(ingredients),
-      steps: JSON.parse(steps),
+      ingredients: ingredientsArray,
+      steps: stepsArray,
       image: req.file.path,
       createdBy: req.user.id,
       user: req.user.id,
@@ -137,6 +152,7 @@ router.post("/upload", verifyToken, upload.single("image"), async (req, res) => 
     await newRecipe.save();
     res.status(200).json({ message: "Resep berhasil ditambahkan", recipe: newRecipe });
   } catch (err) {
+    console.error("UPLOAD EROR", err);
     res.status(500).json({ message: "Resep gagal ditambahkan", err: err.message });
   }
 });
@@ -147,8 +163,8 @@ router.put("/:id", verifyToken, upload.single("image"), async (req, res) => {
     const updateData = {
       title: req.body.title,
       description: req.body.description,
-      ingredients: Array.isArray(req.body.ingredients) ? req.body.ingredients : req.body.ingredients?.split("\n").filter(Boolean),
-      steps: Array.isArray(req.body.steps) ? req.body.steps : req.body.steps?.split("\n").filter(Boolean),
+      ingredients: req.body.ingredients,
+      steps: req.body.steps,
     };
 
     if (req.file) {
@@ -162,6 +178,10 @@ router.put("/:id", verifyToken, upload.single("image"), async (req, res) => {
 
     if (resep.user.toString() !== req.user.id) {
       return res.status(403).json({ message: "Kamu tidak diizinkan mengedit resep ini" });
+    }
+
+    if (!updateData.title || !updateData.description || updateData.ingredients.length === 0 || updateData.steps.length === 0) {
+      return res.status(400).json({ message: "Semua field wajib diisi" });
     }
 
     const updated = await Recipe.findByIdAndUpdate(req.params.id, updateData, {
